@@ -1,0 +1,132 @@
+#lang ivy1.7
+
+module total_order(r) = {
+    axiom r(X,X)                        # Reflexivity
+    axiom r(X, Y) & r(Y, Z) -> r(X, Z)  # Transitivity
+    axiom r(X, Y) & r(Y, X) -> X = Y    # Anti-symmetry
+    axiom r(X, Y) | r(Y, X)             # Totality
+}
+
+type node
+type value
+type byz_quorum
+type round
+type quorum
+type inst
+type votemap
+
+individual none: round
+relation le(X:round, Y:round)
+instantiate total_order(le)
+
+relation is_good(N:node)
+relation member(N:node, Q:quorum)
+axiom member(N,Q) -> is_good(N)
+axiom forall Q1,Q2. exists N. member(N, Q1) & member(N, Q2)
+
+relation byz_member(N:node,BQ:byz_quorum)
+axiom exists Q . forall N . member(N,Q) -> byz_member(N,BQ) # Every byz quorum contains a quorum.
+
+relation joined_round(N:node, R:round)
+relation left_rnd(N:node, R:round)
+relation active(N:node,R:round)
+relation prepare_msg(N:node, I:inst, R:round, V:value)
+relation vote(N:node, I:inst, R:round, V:value)
+relation decision(N:node, I:inst, R:round, V:value)
+individual maxr(M:votemap,I:inst) : round
+individual maxv(M:votemap,I:inst) : value
+
+after init {
+    joined_round(N,R) := false;
+    left_rnd(N,R) := false;
+    active(N,R) := false;
+    prepare_msg(N,I,R,V) := false;
+    vote(N,I,R,V) := false;
+    decision(N,I,R,V) := false;
+}
+
+action join_round(n:node, r:round, m:votemap) = {
+    require r ~= none;
+    require ~left_rnd(n,r);
+
+    require forall I:inst. (
+        ( maxr(m,I) = none & forall R,V. ~(vote(n,I,R,V) & ~le(r,R)) ) |
+        ( vote(n,I,maxr(m,I),maxv(m,I)) & ~le(r,maxr(m,I)) &
+          forall R,V. ~(vote(n,I,R,V) & ~le(r,R) & ~le(R,maxr(m,I))) )
+    );
+    left_rnd(n,R) := left_rnd(n,R) | ~le(r,R);
+    joined_round(n,r) := true
+}
+
+action activate_round(n:node, r:round, q:byz_quorum, m:votemap) = {
+    require r ~= none;
+    require ~active(n,r);
+    require ~(byz_member(N, q) & ~joined_round(N,r));
+
+    require forall I:inst. (
+        ( maxr(m,I) = none &
+           forall N,R,V. ~(byz_member(N, q) & ~le(r,R) & vote(N,I,R,V)) )
+        |
+        ( (exists N . is_good(N) & prepare_msg(N,I,maxr(m,I),maxv(m,I))) &
+          (forall N,V.  ~(byz_member(N, q) & vote(N,I,maxr(m,I),V) & V ~= maxv(m,I))) &
+          (forall N,R,V.  ~(byz_member(N, q) & ~le(r,R) & vote(N,I,R,V) & ~le(R,maxr(m,I)))) )
+    );
+    
+    active(n,r) := true;
+    prepare_msg(n, I, r, V) := prepare_msg(n, I, r, V) | (maxr(m,I) ~= none & V = maxv(m,I))
+}
+
+action prepare(n:node, r:round, i:inst, v:value) = {
+    require r ~= none;
+    require active(n,r);
+    require ~prepare_msg(n,i, r, V);
+    prepare_msg(n, i, r, v) := true
+}
+
+action cast_vote(n:node, i:inst, r:round, q:byz_quorum, v:value) = {
+    require r ~= none;
+    require ~left_rnd(n,r);
+    require ~(byz_member(N,q) & ~prepare_msg(N,i,r,v));
+    vote(n, i, r, v) := true
+}
+
+action decide(n:node, i:inst, r:round, q:byz_quorum, v:value) = {
+    require r ~= none;
+    require ~(byz_member(N, q) & ~vote(N, i, r, v));
+    decision(n, i, r, v) := true
+}
+
+export join_round
+export activate_round
+export prepare
+export cast_vote
+export decide
+# There is no byzantine action because the invariants below do not say anything about byzantine nodes. Therefore their state can evolve arbitrarily without breaking the invariants.
+
+# Note: rewriting implications speeds up checking.
+
+# safety property:
+conjecture ~(is_good(N1) & is_good(N2) & decision(N1,I,R1,V1) & decision(N2,I,R2,V2) & V1 ~= V2)
+
+# properties of none
+conjecture ~(is_good(N) & vote(N,I,none,V))
+conjecture ~(is_good(N) & prepare_msg(N,I,none,V))
+
+# only propose in active rounds
+conjecture ~(is_good(N) & prepare_msg(N,I,R,V) & ~active(N,R))
+
+# prepare_msgs are unique per round
+conjecture ~(is_good(N) & prepare_msg(N,I,R,V1) & prepare_msg(N,I,R,V2) & V1 ~= V2)
+
+# only vote for proposed values
+conjecture ~(is_good(N) & vote(N,I,R,V) & forall Q . exists N2 . member(N2,Q) & ~prepare_msg(N2,I,R,V))
+
+# decisions come from quorums of votes:
+conjecture ~(is_good(N) & decision(N,I,R,V) & forall Q:quorum. exists N2:node. member(N2, Q) & ~vote(N2,I,R,V))
+
+# Properties of choosable and prepare_msg
+conjecture ~(~le(R2,R1) & is_good(N) & active(N,R2) & ~prepare_msg(N,I,R2,V) &
+    ~(exists N2. member(N2,Q) & left_rnd(N2,R1) & ~vote(N2,I,R1,V)))
+
+# properties of one_b, left_rnd
+conjecture ~(is_good(N) & joined_round(N,R2) & ~le(R2,R1) & ~left_rnd(N,R1))
