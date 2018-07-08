@@ -17,16 +17,20 @@ individual none: round
 relation le(X:round, Y:round)
 instantiate total_order(le)
 
-relation is_good(N:node)
+relation is_good(N:node) # should be used only in the proof!
+
+# quorum axiomatization
+# we think of byzantine paxos as an algorithm that ensures that the good nodes simulate non-byzantine paxos, and we prove safety using this view. Therefore we use the concept of a quorum among good nodes (i.e. F+1 among 2F+1) and we define byzantine quorums (i.e. the 2F+1 among 3F+1)
 relation member(N:node, Q:quorum)
 axiom member(N,Q) -> is_good(N)
 axiom forall Q1,Q2. exists N. member(N, Q1) & member(N, Q2)
 
 relation byz_member(N:node,BQ:byzquorum)
 axiom exists Q . forall N . member(N,Q) -> byz_member(N,BQ) # Every byz quorum contains a quorum.
+# end quorum axiomatization
 
 relation one_a(R:round)
-relation one_b(N:node, R:round) 
+relation one_b(N:node, R:round)
 relation left_rnd(N:node, R:round)
 relation proposal(N:node, R:round, V:value)
 relation vote(N:node, R:round, V:value)
@@ -67,24 +71,26 @@ action join_round = {
     }
 }
 
+# In propose, the model lets good nodes propose different values in the same round (if all values are safe).
+# This is because a byzantine leader can send different pre-prepares to different nodes.
 action propose = {
     # receive a quorum of 1b's and send a 2a (proposal)
     local n:node, r:round, q:byzquorum {
         assume r ~= none;
         assume ~proposal(n,r,V);
         assume forall N:node. byz_member(N, q) -> one_b(N,r);
-
-        local maxr:round, v:value {
-            # find the maximal max_vote in the quorum
+        
+        local maxr:round, maxv:value {
             assume ((forall N:node,MAXR:round,V:value. ~(byz_member(N, q) & ~le(r,MAXR) & vote(N,MAXR,V))) |
-                    (maxr ~= none &
-                      (forall N,V . byz_member(N,q) & vote(N,maxr,V) -> V = v) &
-	              (exists N:node. is_good(N) & proposal(N,maxr,v)) & # Here we would wait for f+1
-                      (forall N:node,MAXR:round,V:value. (byz_member(N, q) & ~le(r,MAXR) & vote(N,MAXR,V)) -> le(MAXR,maxr))
+                    ( maxr ~= none &
+	              (exists N:node. is_good(N) & proposal(N,maxr,maxv)) & # maxv is safe at maxr
+                      (forall N,V . byz_member(N,q) & vote(N,maxr,V) -> V = maxv) & # if there are multiple proposals at maxr, we must make sure that if one was voted for then we use that one
+                      (forall N:node,MAXR:round,V:value. (byz_member(N, q) & ~le(r,MAXR) & vote(N,MAXR,V)) -> le(MAXR,maxr)) # there are no proposals above maxr
                    ));
             # propose value v
-            proposal(n, r, v) := true
+            proposal(n, r, maxv) := true
         }
+        # Note that there seems to be a liveness problem when a byzantine node can report a bogus vote higher than the "real" highest vote. This is not an issue because eventually a quorum of good nodes will be available and this will unblock the situation.
     }
 }
 
