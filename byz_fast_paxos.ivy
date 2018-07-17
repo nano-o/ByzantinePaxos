@@ -1,6 +1,7 @@
 #lang ivy1.7
 
 # Fast paxos byzantized by roughly following Lamport's "byzantizing" technique.
+# Note that verification is very slow (takes 15 minutes on my laptop with core i7 7th gen)
 
 module total_order(r) = {
     axiom r(X,X)                        # Reflexivity
@@ -181,11 +182,11 @@ action fast_decide = {
     }
 }
 
-# export send_1a
-# export join_round
-# export propose
-# export fast_vote
-# export classic_vote
+export send_1a
+export join_round
+export propose
+export fast_vote
+export classic_vote
 export classic_decide
 export fast_decide
 # there is no byzantine action because the invariants below do not say anything about byzantine nodes. Therefore their state can evolve arbitrarily without breaking the invariants.
