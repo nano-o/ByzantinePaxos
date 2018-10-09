@@ -22,6 +22,7 @@ relation is_good(N:node)
 
 ## start quorum axiomatization
 # F is the number of byzantine failures tolerated by the slow path; Q is the number of byzantine failures tolerated by the fast-path.
+# the total number of nodes is >3F+2Q+1
 
 # first the crash-stop quorums (we are byzantizing a crash-stop algorithm)
 
@@ -44,11 +45,12 @@ relation byz_member(N:node,Q:byz_quorum)
 axiom exists Q . forall N . member(N,Q) -> byz_member(N,BQ) # Every byz quorum contains a quorum
 
 type byz_fast_quorum # >=3F+Q+1
-relation byz_fast_member(N:node,Q:byz_quorum)
+relation byz_fast_member(N:node,Q:byz_fast_quorum)
 axiom exists FQ . forall N . fast_member(N,FQ) -> byz_fast_member(N,BFQ) # A byz fast quorum contains a fast quorum
 
 type byz_inter_quorum # >=F+Q+1
 relation byz_inter_member(N:node, Q:byz_inter_quorum)
+# comment out the following two axioms to speed-up checking of the decide actions.
 axiom exists BIQ . forall N . ((member(N,Q) & fast_member(N,FQ)) <-> byz_inter_member(N,BIQ)) # the intersection between a classic quorum and a fast quorum is a byz intersection quorum
 axiom ((forall N . byz_inter_member(N,BIQ1) -> byz_member(N,BQ)) & (forall N . byz_inter_member(N,BIQ2) -> byz_member(N,BQ))) -> exists N . is_good(N) & byz_inter_member(N,BIQ1) & byz_inter_member(N,BIQ2) # two F+Q+1 quorums taken within a byz quorum have one good node in common
 
@@ -174,10 +176,10 @@ action classic_decide = {
 }
 
 action fast_decide = {
-    local n:node, r:round, v:value {
+    local n:node, r:round, v:value, q:byz_fast_quorum {
         require r ~= none;
 	require is_fast(r);
-        require vote(N, r, v);
+        require byz_fast_member(N, q) -> vote(N, r, v);
         decision(n, r, v) := true
     }
 }
