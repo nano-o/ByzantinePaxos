@@ -2,8 +2,8 @@
 
 # Fast Byzantine Paxos axiomatizating byzantine quorums without reference to crash-stop quorums.
 # We have >3F+2Q+1 nodes, with Q<=F, among which at most F are byzantine.
-# The fast path succeeds if experiencing less than Q byzantine faults
-# The slow path succeeds if experiencing less than F byzantine faults
+# The fast path succeeds if it experiences less than Q byzantine faults and all other nodes communicate and propose the same value
+# The slow path succeeds if experiencing less than F byzantine faults under a correct leader that can reach a quorum.
 
 module total_order(r) = {
     axiom r(X,X)                        # Reflexivity
@@ -74,16 +74,8 @@ action join_round = {
         require one_a(r);
         require ~left_rnd(n,r);
 
-        local maxr:round, v:value {
-            # find the maximal vote in a round less than r
-            require ((maxr = none & forall MAXR:round,V:value. ~(~le(r,MAXR) & vote(n,MAXR,V))) |
-                    (maxr ~= none & ~le(r,maxr) & vote(n,maxr,v) &
-                    (forall MAXR:round,V:value. (~le(r,MAXR) & vote(n,MAXR,V)) -> le(MAXR,maxr))
-                   ));
-            # send the 1b message
-            one_b(n,r) := true;
-            left_rnd(n,R) := left_rnd(n,R) | ~le(r,R)
-        }
+        one_b(n,r) := true;
+        left_rnd(n,R) := left_rnd(n,R) | ~le(r,R)
     }
 }
 

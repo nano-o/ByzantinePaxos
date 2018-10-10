@@ -58,16 +58,8 @@ action join_round = {
         assume one_a(r);
         assume ~left_rnd(n,r);
 
-        local maxr:round, v:value {
-            # find the maximal vote in a round less than r
-            assume ((maxr = none & forall MAXR:round,V:value. ~(~le(r,MAXR) & vote(n,MAXR,V))) |
-                    (maxr ~= none & ~le(r,maxr) & vote(n,maxr,v) &
-                    (forall MAXR:round,V:value. (~le(r,MAXR) & vote(n,MAXR,V)) -> le(MAXR,maxr))
-                   ));
-            # send the 1b message
-            one_b(n,r) := true;
-            left_rnd(n,R) := left_rnd(n,R) | ~le(r,R)
-        }
+        one_b(n,r) := true;
+        left_rnd(n,R) := left_rnd(n,R) | ~le(r,R)
     }
 }
 
