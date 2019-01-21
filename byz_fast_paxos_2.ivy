@@ -35,7 +35,7 @@ axiom exists N . is_good(N) & byz_member(N, Q) & byz_fast_member(N, Q1) & byz_fa
 type byz_inter_quorum # >=F+Q+1
 relation byz_inter_member(N:node, Q:byz_inter_quorum)
 axiom exists BIQ . (forall N . byz_inter_member(N, BIQ) <-> (is_good(N) & byz_member(N,Q) & byz_fast_member(N,FQ)))
-axiom (forall N . byz_inter_member(N, BIQ) -> byz_member(N,Q)) -> exists N . is_good(N) & byz_fast_member(N, FQ) & byz_inter_member(N,BIQ)
+axiom exists N . is_good(N) & byz_fast_member(N, FQ) & byz_inter_member(N,BIQ)
 
 ## end quorum axiomatization
 
