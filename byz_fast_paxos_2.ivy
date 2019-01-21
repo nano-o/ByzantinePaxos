@@ -98,17 +98,16 @@ action propose = {
 	        require maxr ~= none & ~le(r,maxr) & (forall N, MAXR, V . (byz_member(N, q) & ~le(r,MAXR) & vote(N,MAXR,V)) -> le(MAXR,maxr));
                 
 	        if ~is_fast(maxr) {
-	            require exists  N . is_good(N) & proposal(N,maxr,v); # one good node made a proposal; thus v is safe at maxr
+	            require exists  N . is_good(N) & proposal(N,maxr,v); # one good node made a proposal; thus v is safe at maxr. In practice we can check that there are at least F+1 proposals
 	            require forall N,V . byz_member(N,q) & vote(N,maxr,V) -> V = v; # all votes reported at maxr are for v
 	            proposal(n,r,v) := true
 	        }
 	        else {
-	            # one good node sent a proposal or an "any" message, thus v is safe at maxr:
-	            # require (exists  N . is_good(N) & (proposal(N,maxr,v) | any(N,maxr)));
+	            :
 	            local v2:value {
 	                require
 	                (exists BIQ . (forall N . byz_inter_member(N,BIQ) -> (byz_member(N,q) & vote(N,maxr,v)))) # F+Q+1 among q have voted for the same value v
-	                | ((exists  N . is_good(N) & (proposal(N,maxr,v) | any(N,maxr))) & (forall V2, BIQ . (forall N . byz_inter_member(N,BIQ) -> byz_member(N,q)) -> (exists N . byz_inter_member(N,BIQ) & ~vote(N,maxr,V2)))); # no value has been voted by F+Q+1 among q 
+	                | ((exists  N . is_good(N) & (proposal(N,maxr,v) | any(N,maxr))) & (forall V2, BIQ . (forall N . byz_inter_member(N,BIQ) -> byz_member(N,q)) -> (exists N . byz_inter_member(N,BIQ) & ~vote(N,maxr,V2)))); # no value has been voted by F+Q+1 among q, and v is safe (one good node sent a proposal for v or an "any" message, thus v is safe at maxr)
 	                proposal(n,r,v) := true;
 	            }
 	        }
